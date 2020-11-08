@@ -4,7 +4,7 @@ extern crate hex;
 
 use clap::{App, Arg};
 use image;
-use std::{fs, io::{prelude::*, BufReader}, path};
+use std::{collections::HashSet, fs, io::{prelude::*, BufReader}, path};
 
 type HTTPRequest = (String, Vec<u8>);
 type Dictionary = (String, Vec<String>);
@@ -50,11 +50,12 @@ fn main() {
         let file = fs::File::open(&path).expect("Could not open dictionary");
         let mut buf = BufReader::new(file);
 
-        let http_request_data = load_http_requests(&mut buf);
+        println!("SCANNING FILE {}", filename_as_str);
 
+        let http_request_data = load_http_requests(&mut buf);
         for request in http_request_data {
 
-            println!("{}: scanning URL {}", filename_as_str, request.0);
+            println!("Scanning URL {}", request.0);
 
             if contains_image_data(&request) {
                 println!("Requst contains image data!");
@@ -77,19 +78,26 @@ fn main() {
 }
 
 fn search_buffer_for_words(file_buffer: &mut BufReader<fs::File>, dictionaries: &Vec<Dictionary>) {
+
+    let mut searched_lines = HashSet::new();
+
     loop {
 
         let line = get_utf8_line(file_buffer);
-        if line.len() == 0 { break }
+        if line_is_null(&line) { break }
+
+        if searched_lines.contains(&line) { continue }
 
         for dictionary in dictionaries {
             for word in &dictionary.1 {
                 if word.len() < 4 { continue }
-                if line.to_ascii_lowercase().contains(word) {
-                    println!("Found potentially sensitive word {} from dictionary {}! Line: {}", word, dictionary.0, line)
+                if line.to_ascii_lowercase().contains(&word.to_ascii_lowercase()) {
+                    println!("Found at least one occurnace of potentially sensitive word {} (in dictionary {}). Line: {}", word, dictionary.0, line)
                 }
             }
         }
+
+        searched_lines.insert(line);
     }
 }
 
@@ -111,7 +119,7 @@ fn load_http_requests(buf: &mut BufReader<fs::File>) -> Vec<HTTPRequest> {
     loop {
 
         let line = get_utf8_line(buf);
-        if line.len() == 0 { break }
+        if line_is_null(&line) { break }
 
         if line == "BEGINTLS" { break }
 
@@ -139,7 +147,7 @@ fn load_http_requests(buf: &mut BufReader<fs::File>) -> Vec<HTTPRequest> {
 fn get_utf8_line(file_buffer: &mut BufReader<fs::File>) -> String {
     let mut buf: Vec<u8> = Vec::new();
     let bytes_read = file_buffer.read_until(0x0A as u8, &mut buf).unwrap();
-    if bytes_read == 0 { return String::new() }
+    if bytes_read == 0 { return String::from_utf8(vec![0x00]).unwrap() }
 
     let mut ascii_buf: Vec<u8> = Vec::new();
 
@@ -150,6 +158,11 @@ fn get_utf8_line(file_buffer: &mut BufReader<fs::File>) -> String {
     }
 
     String::from_utf8(ascii_buf).unwrap()
+}
+
+fn line_is_null(line: &String) -> bool {
+    if line.len() == 1 && line == "\x00" { return true }
+    false
 }
 
 fn contains_image_data(request: &HTTPRequest) -> bool {
