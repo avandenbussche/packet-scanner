@@ -80,24 +80,28 @@ fn main() {
 fn search_buffer_for_words(file_buffer: &mut BufReader<fs::File>, dictionaries: &Vec<Dictionary>) {
 
     let mut searched_lines = HashSet::new();
+    let mut sensitive_lines = HashSet::new();
 
     loop {
 
         let line = get_utf8_line(file_buffer);
         if line_is_null(&line) { break }
 
-        if searched_lines.contains(&line) { continue }
+        let searched_line = line.clone();
+        if searched_lines.contains(&searched_line) { continue }
 
         for dictionary in dictionaries {
             for word in &dictionary.1 {
                 if word.len() < 4 { continue }
                 if line.to_ascii_lowercase().contains(&word.to_ascii_lowercase()) {
-                    println!("Found at least one occurnace of potentially sensitive word {} (in dictionary {}). Line: {}", word, dictionary.0, line)
+                    if sensitive_lines.contains(&line) { continue }
+                    sensitive_lines.insert(line.clone());
+                    println!("Potentially sensitive line: {}", line)
                 }
             }
         }
 
-        searched_lines.insert(line);
+        searched_lines.insert(searched_line);
     }
 }
 
