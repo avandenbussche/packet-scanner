@@ -123,15 +123,16 @@ fn load_http_requests(buf: &mut BufReader<fs::File>) -> Vec<HTTPRequest> {
     loop {
 
         let line = get_utf8_line(buf);
-        if line_is_null(&line) { break }
 
+        if line_is_null(&line) { break }
         if line == "BEGINTLS" { break }
 
         let components = line.split_whitespace().collect::<Vec<&str>>();
         match components.len() {
             1 => {
                 let new_request: HTTPRequest = (components[0].to_string(), Vec::new());
-                requests.push(new_request)
+                requests.push(new_request);
+                println!("Request contains no body")
             },
             2 => {
                 let new_request: HTTPRequest = (components[0].to_string(), hex::decode(components[1]).unwrap());
@@ -156,7 +157,7 @@ fn get_utf8_line(file_buffer: &mut BufReader<fs::File>) -> String {
     let mut ascii_buf: Vec<u8> = Vec::new();
 
     for byte in buf {
-        if byte.is_ascii_alphanumeric() || byte.is_ascii_punctuation() {
+        if byte.is_ascii_alphanumeric() || byte.is_ascii_punctuation() || byte == b'\x09' {
             ascii_buf.push(byte);
         }
     }
